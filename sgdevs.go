@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"strconv"
 )
 
 func check(function string, e error) {
@@ -62,9 +63,12 @@ func main() {
 	for _, sid := range sids {
 		fmt.Printf("Extracting selected devices for SID %s...", sid)
 		outfile, err := os.Create(sid + "-filteredDevices.txt")
+		sizefile, err:=os.Create(sid + "-storageGroupSizes.csv")
+		_,err=sizefile.WriteString(fmt.Sprintf("%s,%s\n","Storage Group", "Size(MB)"))
 		check("Creating file: ", err)
 		sgList := make([]string, 0)
 		for _, sg := range storageGroups {
+			sgSize:=0
 			command := exec.Command(devexe, "list", "-sid", sid, "-sg", sg)
 			stdout, err := command.StdoutPipe()
 			check("Command Output: ", err)
@@ -72,17 +76,25 @@ func main() {
 			result := bufio.NewScanner(stdout)
 			for result.Scan() {
 				devLine := result.Text()
+				deviceSize:=0
 				if devPattern.MatchString(devLine) == true {
 					arrayData := strings.Fields(devLine)
 					device := arrayData[0]
+					deviceSize,err=strconv.Atoi(arrayData[len(arrayData)-1])
 					sgList = append(sgList, device)
 					_, err := outfile.WriteString(fmt.Sprintf("%s,%s\n", device, sid))
 					check("Writing to file: ", err)
+					sgSize=sgSize +  deviceSize
+					check("Convert string to int: ",err)
 				}
+				
 			}
+			_, err = sizefile.WriteString(fmt.Sprintf("%s,%d\n",sg,sgSize))
+			check("Writing size file: ",err)
 		}
 		fmt.Printf("Done.\n")
-		fmt.Printf("File created:%s with %d devices.", outfile.Name(), len(sgList))
+		fmt.Printf("File created:%s with %d devices.\n", outfile.Name(), len(sgList))
+		fmt.Printf("File created:%s.\n", sizefile.Name())
 	}
 
 }
